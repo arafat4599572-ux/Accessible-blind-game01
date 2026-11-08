@@ -1,0 +1,822 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#F2F4F9" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0A0F1A" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Accessible Blind Game</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@500;700&display=swap">
+<style>
+/* Layout: one narrow column, full-width controls at least 60px tall, the screen title always first, board drawn for helpers but hidden from screen readers.
+   Type: Atkinson Hyperlegible (made for low vision readers) for everything, its Mono cut for square numbers.
+   Color: neutral blue-grey ground, user-chosen primary (button fill) and secondary (rings, rules). Accent is never used as text color. */
+:root{
+  --bg:#F2F4F9; --surface:#FFFFFF; --surface2:#E6EAF3; --fg:#0B1220; --muted:#3C455A; --line:#7C869C; --soft:#CBD1DE;
+  --accent:#FFC93C; --on-accent:#1A1400; --accent2:#0FA3A3;
+  --danger:#B3261E; --on-danger:#FFFFFF; --ladder:#1E7F4A; --snake:#C0392B;
+  --board-a:#EEF1F8; --board-b:#DDE3F0;
+  --font-body:"Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-num:"Atkinson Hyperlegible Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0A0F1A; --surface:#141B2B; --surface2:#1D2740; --fg:#F5F7FB; --muted:#B7C0D3; --line:#6E7A96; --soft:#2F3A55;
+    --danger:#FF8A80; --on-danger:#2B0000; --ladder:#4FD08A; --snake:#FF7A6B;
+    --board-a:#19213A; --board-b:#121A2F; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0A0F1A; --surface:#141B2B; --surface2:#1D2740; --fg:#F5F7FB; --muted:#B7C0D3; --line:#6E7A96; --soft:#2F3A55;
+  --danger:#FF8A80; --on-danger:#2B0000; --ladder:#4FD08A; --snake:#FF7A6B;
+  --board-a:#19213A; --board-b:#121A2F; color-scheme:dark;
+}
+*{box-sizing:border-box}
+html{-webkit-tap-highlight-color:transparent;overscroll-behavior-y:none;-webkit-text-size-adjust:100%}
+body{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:manipulation;cursor:default}
+input,textarea,select{-webkit-user-select:text;user-select:text;cursor:text}
+select{cursor:default}
+button{font-family:inherit}
+body{margin:0;font:400 1.125rem/1.5 var(--font-body);background:var(--bg);color:var(--fg);
+  padding-block:20px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:560px;margin-inline:auto}
+.sr-only{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+h1{font:700 2rem/1.15 var(--font-body);margin:8px 0 8px;text-wrap:balance;overflow-wrap:anywhere}
+h2{font:700 1.35rem/1.25 var(--font-body);margin:28px 0 10px;text-wrap:balance}
+h3{font:700 1.1rem/1.3 var(--font-body);margin:18px 0 6px}
+p{margin:0 0 12px}
+ul,ol{margin:0 0 12px;padding-left:1.3rem}
+li{margin:4px 0}
+h1:focus,h2:focus,section:focus,[tabindex="-1"]:focus{outline:none}
+:focus-visible{outline:4px solid var(--accent2);outline-offset:3px;border-radius:10px}
+.lead{color:var(--muted);margin:6px 0 20px}
+.muted{color:var(--muted)}
+.hint{color:var(--muted);font-size:1rem;margin:4px 0 0}
+.note{color:var(--muted);font-size:1rem;margin-top:22px;padding-top:14px;border-top:2px solid var(--soft)}
+.err{color:var(--danger);font-weight:700;margin:0 0 12px}
+.ok{color:var(--ladder);font-weight:700;margin:12px 0 0}
+.brand{display:flex;align-items:center;gap:14px}
+.wave{display:inline-flex;align-items:flex-end;gap:3px;height:30px;flex:none}
+.wave i{display:block;width:6px;border-radius:3px;background:var(--accent2);height:35%}
+.wave i:nth-child(2){height:70%}.wave i:nth-child(3){height:100%}.wave i:nth-child(4){height:60%}.wave i:nth-child(5){height:40%}
+.wave.speaking i{animation:eq .7s ease-in-out infinite alternate}
+.wave.speaking i:nth-child(2){animation-delay:.1s}.wave.speaking i:nth-child(3){animation-delay:.2s}
+.wave.speaking i:nth-child(4){animation-delay:.05s}.wave.speaking i:nth-child(5){animation-delay:.15s}
+@keyframes eq{from{transform:scaleY(.4);transform-origin:bottom}to{transform:scaleY(1);transform-origin:bottom}}
+
+.btn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;min-height:60px;padding:14px 18px;border-radius:14px;
+  border:2px solid var(--line);background:var(--surface);color:var(--fg);font:700 1.15rem/1.25 var(--font-body);text-align:center;cursor:default;transition:filter .12s ease,transform .12s ease;-webkit-appearance:none;appearance:none}
+.btn:active{filter:brightness(.9);transform:scale(.985)}
+.btn.primary{background:var(--accent);color:var(--on-accent);border-color:transparent}
+.btn.danger{border-color:var(--danger);color:var(--danger)}
+.btn.dangerfill{background:var(--danger);color:var(--on-danger);border-color:transparent}
+.btn.left{justify-content:flex-start;text-align:left}
+.btn.big{min-height:84px;font-size:1.3rem}
+.btn.giant{min-height:104px;font-size:1.7rem}
+.btn[aria-disabled="true"]{opacity:.55;cursor:not-allowed}
+.btn.back{width:auto;min-height:52px;padding:10px 20px}
+.btn .sub{display:block;font-weight:400;font-size:1rem;color:var(--muted);margin-top:2px}
+.btn.primary .sub{color:var(--on-accent)}
+.btn .col{display:block;min-width:0;overflow-wrap:anywhere}
+.topbar{margin-bottom:14px}
+.appbar{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:6px;margin:-20px 0 8px;padding:10px 0 8px;background:var(--bg)}
+.abtn{width:56px;height:56px;flex:none;display:grid;place-items:center;border:0;border-radius:50%;background:transparent;color:var(--fg);cursor:default;-webkit-appearance:none;appearance:none;transition:background .12s ease}
+.abtn:active{background:var(--surface2)}
+.abtn svg{width:28px;height:28px}
+.abtitle{font:700 1.05rem/1.2 var(--font-body);color:var(--muted);min-width:0;overflow-wrap:anywhere}
+.stack{display:flex;flex-direction:column;gap:12px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
+@media (max-width:360px){.row2{grid-template-columns:1fr}}
+
+.field{display:flex;flex-direction:column;gap:6px;margin-bottom:16px}
+.field>label,.check label{font-weight:700}
+input[type=text],input[type=email],select,textarea{width:100%;min-height:58px;padding:12px 14px;border-radius:12px;border:2px solid var(--line);
+  background:var(--surface);color:var(--fg);font:400 1.15rem/1.4 var(--font-body)}
+textarea{min-height:120px;resize:vertical}
+input[type=range]{width:100%;min-height:44px;accent-color:var(--accent2)}
+.check{display:flex;gap:14px;align-items:center;min-height:56px;margin-bottom:12px}
+.check input{width:30px;height:30px;flex:none;accent-color:var(--accent2)}
+.check label{font-weight:400}
+
+.toprow{display:flex;gap:12px;margin:20px 0 12px}
+.toprow .profile{flex:1;min-width:0}
+.iconbtn{width:68px;flex:none;padding:0}
+.avatar{width:46px;height:46px;border-radius:50%;background:var(--accent);color:var(--on-accent);display:grid;place-items:center;font-weight:700;font-size:1.3rem;flex:none}
+.badge{margin-left:auto;min-width:34px;height:34px;padding:0 10px;border-radius:17px;background:var(--fg);color:var(--bg);display:grid;place-items:center;font-weight:700}
+.home-list{display:flex;flex-direction:column;gap:12px}
+
+dl.facts{margin:0}
+dl.facts dt{color:var(--muted);font-size:1rem;margin-top:12px}
+dl.facts dd{margin:0;font-weight:700;font-size:1.2rem;overflow-wrap:anywhere}
+.levelbox{border:2px solid var(--line);border-radius:14px;padding:16px;background:var(--surface)}
+.levelbox .lv{font-size:2.2rem;font-weight:700;line-height:1.1}
+progress{width:100%;height:22px;accent-color:var(--accent2);margin:10px 0 6px}
+ol.stages{list-style:none;padding:0;margin:0;display:grid;gap:8px}
+ol.stages li{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:12px;border:2px solid var(--soft);margin:0}
+ol.stages .chip{flex:none;min-width:64px;text-align:center;padding:4px 8px;border-radius:10px;font-weight:700;background:var(--surface2)}
+ol.stages li.done .chip{background:var(--accent);color:var(--on-accent)}
+ol.stages li.cur{border-color:var(--accent2);border-width:3px}
+ol.stages li.lock{color:var(--muted)}
+ol.stages .st{margin-left:auto;font-size:1rem;color:var(--muted);text-align:right}
+.menu{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:12px}
+.menu li{margin:0}
+.menu .chev{margin-left:auto;font-size:1.6rem;line-height:1}
+.noteitem{border-left:6px solid var(--accent2);padding:4px 0 4px 14px;margin:0 0 16px}
+.noteitem.unread{border-left-color:var(--fg)}
+.noteitem h3{margin:0 0 4px}
+.noteitem p{margin:0}
+
+.status{font-size:1.3rem;font-weight:700;margin:12px 0 14px}
+.boardwrap{margin:18px 0 6px;border:2px solid var(--line);border-radius:14px;overflow:hidden;background:var(--surface)}
+.boardwrap svg{display:block;width:100%;height:auto;max-width:100%}
+.ca{fill:var(--board-a)}.cb{fill:var(--board-b)}.startzone{fill:var(--surface2)}
+.num{fill:var(--muted);font:700 2.7px var(--font-num)}
+.lad{stroke:var(--ladder);stroke-width:.7;fill:none;stroke-linecap:round}
+.snk{stroke:var(--snake);stroke-width:1.6;fill:none;stroke-linecap:round}
+.snkhead{fill:var(--snake)}.eye{fill:var(--bg)}
+.tok{transition:transform .22s ease}
+.tok circle{stroke:var(--fg);stroke-width:.7}
+.tok text{font:700 3.6px var(--font-body);text-anchor:middle;dominant-baseline:central}
+.t-you{fill:var(--accent)}.tt-you{fill:var(--on-accent)}
+.t-B{fill:#2F6FED}.t-C{fill:#1F9D55}.t-D{fill:#8E4EC6}.tt-B,.tt-C,.tt-D{fill:#fff}
+.poslist{list-style:none;padding:0;margin:0;display:grid;gap:8px}
+.poslist li{display:flex;align-items:center;gap:12px;margin:0;padding:10px 12px;border:2px solid var(--soft);border-radius:12px}
+.dot{width:20px;height:20px;border-radius:50%;border:2px solid var(--fg);flex:none}
+.d-you{background:var(--accent)}.d-B{background:#2F6FED}.d-C{background:#1F9D55}.d-D{background:#8E4EC6}
+.poslist .sq{margin-left:auto;font-family:var(--font-num);font-weight:700;white-space:nowrap}
+ol.history{padding-left:1.4rem}
+.panel{border:3px solid var(--accent2);border-radius:14px;padding:16px;margin:16px 0;background:var(--surface)}
+.panel h2{margin-top:0}
+.group{background:var(--surface);border:2px solid var(--soft);border-radius:16px;padding:4px 16px 16px;margin:14px 0}
+.group>h2{margin:14px 0 10px}
+.group .levelbox{border:0;padding:0;background:transparent}
+.group .field:last-child,.group .check:last-child{margin-bottom:0}
+html{scrollbar-width:none}
+html::-webkit-scrollbar,body::-webkit-scrollbar{display:none}
+@media (prefers-reduced-motion: reduce){.wave.speaking i{animation:none}.tok{transition:none}.btn,.abtn{transition:none}.btn:active{transform:none}}
+html{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <main id="view"></main>
+  <div id="live" class="sr-only" role="status" aria-live="assertive" aria-atomic="true"></div>
+</div>
+
+<script>
+(function(){
+'use strict';
+var $=function(s,r){return (r||document).querySelector(s);};
+var sleep=function(ms){return new Promise(function(r){setTimeout(r,ms);});};
+var esc=function(s){return String(s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});};
+
+/*BOARDS-START*/
+var BOARDS={
+  classic:{name:'Classic board',blurb:'A balanced mix of ladders and snakes.',
+    ladders:{2:23,7:29,15:37,22:41,34:55,45:64,53:74,69:90,77:97},
+    snakes:{27:5,39:18,48:26,58:36,66:44,72:51,81:60,88:67,94:73,98:79}},
+  gentle:{name:'Gentle board',blurb:'More ladders than snakes. A relaxed game.',
+    ladders:{3:24,9:31,14:35,20:42,26:57,33:54,49:71,60:82,70:92},
+    snakes:{36:17,56:38,75:53,91:69,97:79}},
+  steep:{name:'Steep board',blurb:'Few ladders and many snakes. Expect big falls.',
+    ladders:{5:26,12:38,24:45,41:58,52:73,67:86,78:95},
+    snakes:{16:3,30:8,37:13,46:25,53:32,59:40,65:44,74:54,83:62,89:69,93:72,98:76}}
+};
+function sqXY(n){var i=n-1,r=Math.floor(i/10),c=(r%2===0)?i%10:9-(i%10);return {x:c*10+5,y:(9-r)*10+5};}
+function takeTurn(board,pos,roll){
+  var landed=pos+roll;
+  if(landed>=100){return {from:pos,roll:roll,landed:100,final:100,event:null,won:true};}
+  var ev=null,fin=landed;
+  if(board.ladders[landed]){ev='ladder';fin=board.ladders[landed];}
+  else if(board.snakes[landed]){ev='snake';fin=board.snakes[landed];}
+  return {from:pos,roll:roll,landed:landed,final:fin,event:ev,won:fin>=100};
+}
+/*BOARDS-END*/
+
+/* ---------- storage (per browser, wrapped in try/catch) ---------- */
+var KEY='abg-v2';
+function loadDB(){try{var t=localStorage.getItem(KEY);if(t){return JSON.parse(t);}}catch(e){}return {};}
+var DB=loadDB();
+DB.profiles=DB.profiles||{};
+DB.session=DB.session||null;
+DB.read=DB.read||[];
+DB.setup=Object.assign({board:'classic',robot:'B'},DB.setup||{});
+DB.settings=Object.assign({primary:'sunflower',secondary:'teal',voice:false,commentary:true,sound:true,rate:'normal',volume:80},DB.settings||{});
+function save(){try{localStorage.setItem(KEY,JSON.stringify(DB));}catch(e){}}
+
+/* ---------- constants ---------- */
+var PRIMARY={
+  sunflower:{name:'Sunflower yellow',bg:'#FFC93C',fg:'#1A1400'},
+  sky:{name:'Sky blue',bg:'#5AAEFF',fg:'#00152E'},
+  mint:{name:'Mint green',bg:'#3DDC97',fg:'#00240F'},
+  coral:{name:'Coral red',bg:'#FF7B6B',fg:'#2E0600'},
+  lavender:{name:'Lavender',bg:'#BBA3FF',fg:'#170040'}
+};
+var SECONDARY={
+  teal:{name:'Teal',c:'#0FA3A3'},magenta:{name:'Magenta',c:'#D6307F'},green:{name:'Green',c:'#3E9B3E'},
+  orange:{name:'Orange',c:'#E8730C'},indigo:{name:'Indigo',c:'#5B5BD6'}
+};
+var PROVIDERS={email:'Email',phone:'Phone number'};
+var STAGES=['Beginner','Explorer','Climber','Pathfinder','Strategist','Navigator','Veteran','Master','Champion','Legend'];
+var WINS_PER_LEVEL=10;
+var ORD=['first','second','third','fourth'];
+var STATIC_NOTES=[
+  {id:'n-welcome',kind:'new',title:'Welcome to Accessible Blind Game',body:'Everything works by sound and with a screen reader. Start with Play vs Robot.'},
+  {id:'n-levels',kind:'new',title:'How levels work',body:'Win 10 games in first place to reach the next level. Losing never lowers your level.'},
+  {id:'u-v1',kind:'update',title:'Version 1.0',body:'Snakes and Ladders against a robot is ready. Three boards to choose from.'},
+  {id:'u-online',kind:'update',title:'Online multiplayer',body:'Online multiplayer is coming in a later update.'},
+  {id:'u-sound',kind:'update',title:'Sound and voice settings',body:'Change voice speed, volume and sound effects in Settings under Explore.'}
+];
+
+/* ---------- helpers ---------- */
+function me(){return DB.session?DB.profiles[DB.session]:null;}
+function levelOf(p){return 1+Math.floor(p.wins/WINS_PER_LEVEL);}
+function stageOf(l){return STAGES[Math.min(l,STAGES.length)-1];}
+function newNotes(p){return (p.alerts||[]).concat(STATIC_NOTES.filter(function(n){return n.kind==='new';}));}
+function unreadCount(p){return newNotes(p).filter(function(n){return DB.read.indexOf(n.id)<0;}).length;}
+function posText(pos){return pos===0?'at the start':'on square '+pos;}
+function applyTheme(){
+  var r=document.documentElement.style,p=PRIMARY[DB.settings.primary]||PRIMARY.sunflower,s=SECONDARY[DB.settings.secondary]||SECONDARY.teal;
+  r.setProperty('--accent',p.bg);r.setProperty('--on-accent',p.fg);r.setProperty('--accent2',s.c);
+}
+
+/* ---------- audio: sound effects ---------- */
+var actx=null;
+function ac(){
+  if(!actx){try{actx=new (window.AudioContext||window.webkitAudioContext)();}catch(e){actx=null;}}
+  if(actx&&actx.state==='suspended'){try{actx.resume();}catch(e){}}
+  return actx;
+}
+function tone(freq,at,dur,type,vol,pan,endFreq){
+  if(!DB.settings.sound){return;}
+  var c=ac();if(!c){return;}
+  var t=c.currentTime+at,o=c.createOscillator(),g=c.createGain();
+  o.type=type||'sine';o.frequency.setValueAtTime(freq,t);
+  if(endFreq){o.frequency.exponentialRampToValueAtTime(endFreq,t+dur);}
+  var v=Math.max((vol||0.2)*(DB.settings.volume/100),0.0002);
+  g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(v,t+0.01);g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+  o.connect(g);
+  if(c.createStereoPanner&&pan){var p=c.createStereoPanner();p.pan.value=pan;g.connect(p);p.connect(c.destination);}
+  else{g.connect(c.destination);}
+  o.start(t);o.stop(t+dur+0.05);
+}
+var sfx={
+  roll:function(){for(var i=0;i<9;i++){tone(260+Math.random()*420,i*0.075,0.06,'square',0.12);}},
+  step:function(i){tone(480+i*55,0,0.09,'triangle',0.22);},
+  ladder:function(){[392,494,587,784].forEach(function(f,i){tone(f,i*0.11,0.16,'triangle',0.25);});},
+  snake:function(){tone(640,0,0.8,'sawtooth',0.18,0,120);},
+  win:function(){[523,659,784,1047].forEach(function(f,i){tone(f,i*0.14,0.3,'triangle',0.28);});tone(1047,0.6,0.7,'sine',0.25);},
+  lose:function(){[392,349,311,262].forEach(function(f,i){tone(f,i*0.2,0.3,'sine',0.25);});},
+  error:function(){tone(170,0,0.18,'square',0.15);},
+  chime:function(){tone(660,0,0.15,'sine',0.2);tone(880,0.12,0.2,'sine',0.2);}
+};
+
+/* ---------- audio: speech (built-in voice, or the screen reader through a live region) ---------- */
+var lastSpoken='';
+function rateNum(){return {slow:0.8,normal:1,fast:1.3}[DB.settings.rate]||1;}
+function estMs(t){return Math.max(900,t.length*68/rateNum());}
+function live(t){var el=$('#live');if(!el){return;}el.textContent='';setTimeout(function(){el.textContent=t;},40);}
+function waveOn(on){var w=$('#wave');if(w){w.classList.toggle('speaking',on);}}
+var COMM=false; /* true while the game screen is open: a warm female commentator voice */
+var voiceCache=null;
+function pickVoice(){
+  if(!('speechSynthesis' in window)){return null;}
+  var vs=window.speechSynthesis.getVoices()||[];if(!vs.length){return null;}
+  if(voiceCache&&vs.indexOf(voiceCache)>=0){return voiceCache;}
+  var en=vs.filter(function(v){return /^en/i.test(v.lang);});
+  var male=/\bmale\b|david|mark|george|daniel|james|alex|fred|guy|ryan|thomas|oliver/i;
+  var fem=/female|zira|samantha|karen|moira|tessa|victoria|susan|hazel|jenny|aria|libby|sonia|natasha|serena|fiona|catherine|sfg|google us english/i;
+  var pool=en.filter(function(v){return !male.test(v.name);});
+  voiceCache=pool.filter(function(v){return fem.test(v.name+' '+v.voiceURI);})[0]||pool.filter(function(v){return /en[-_]US/i.test(v.lang);})[0]||pool[0]||en[0]||null;
+  return voiceCache;
+}
+try{if('speechSynthesis' in window){window.speechSynthesis.onvoiceschanged=function(){voiceCache=null;};}}catch(e){}
+function pick(a){return a[Math.floor(Math.random()*a.length)];}
+function say(text){
+  lastSpoken=text;
+  return new Promise(function(res){
+    /* In a game the commentator always speaks with its own voice, even when TalkBack is on. Elsewhere the app speaks only when the person is not using a screen reader. */
+    var can=(COMM?DB.settings.commentary:DB.settings.voice)&&('speechSynthesis' in window)&&window.SpeechSynthesisUtterance;
+    if(!can){live(text);waveOn(true);setTimeout(function(){waveOn(false);res();},estMs(text));return;}
+    var u=new SpeechSynthesisUtterance(text),done=false;
+    u.lang='en-US';u.rate=rateNum();u.volume=Math.max(0,Math.min(1,DB.settings.volume/100));
+    if(COMM){var cv=pickVoice();if(cv){u.voice=cv;u.lang=cv.lang;}u.pitch=1.25;u.rate=Math.min(1.6,rateNum()*1.05);}
+    function fin(){if(done){return;}done=true;waveOn(false);res();}
+    u.onstart=function(){waveOn(true);};u.onend=fin;u.onerror=fin;
+    setTimeout(fin,estMs(text)*2.5+2500);
+    try{window.speechSynthesis.speak(u);}catch(e){fin();}
+  });
+}
+function announce(t){say(t);}
+function cancelSpeech(){try{if('speechSynthesis' in window){window.speechSynthesis.cancel();}}catch(e){}waveOn(false);}
+
+/* ---------- routing ---------- */
+var views={};
+var G=null; /* current game */
+var PENDING=null; /* provider chosen on the sign-in page */
+var WAVE='<span class="wave" id="wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>';
+function back(to,label){return '<div class="appbar"><button type="button" class="abtn" data-go="'+to+'" aria-label="Back to '+label+'"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20 11H7.8l5.6-5.6L12 4l-8 8 8 8 1.4-1.4L7.8 13H20z" fill="currentColor"/></svg></button><span class="abtitle" aria-hidden="true">Accessible Blind Game</span></div>';}
+function go(name){if(location.hash==='#'+name){render();}else{location.hash=name;}}
+function currentRoute(){
+  var h=location.hash.replace(/^#/,'');
+  if(!DB.session||!me()){return (h==='choose-account'&&PENDING)?'choose-account':'sign-in';}
+  if(!h||h==='sign-in'||h==='choose-account'){return 'home';}
+  return views[h]?h:'home';
+}
+function render(){
+  var route=currentRoute();
+  COMM=(route==='game');
+  if(G&&route!=='game'&&!G.over){G.aborted=true;}
+  cancelSpeech();
+  var v=views[route]();
+  $('#view').innerHTML=v.html;
+  try{var want='#'+route;if(location.hash!==want&&!(route==='home'&&!location.hash)){history.replaceState(null,'',want);}}catch(e){}
+  window.scrollTo(0,0);
+  var h=$('#view h1');if(h){h.focus();}
+  if(v.hint&&route!=='game'&&DB.settings.voice){announce(v.title+'. '+v.hint);}
+  if(v.after){v.after();}
+}
+window.addEventListener('hashchange',render);
+
+/* ---------- views ---------- */
+views['sign-in']=function(){
+  PENDING=null;
+  return {title:'Welcome to Accessible Blind Game',hint:'You need to sign in to play. Choose Email or Phone number.',html:
+    '<header class="brand">'+WAVE+'<h1 tabindex="-1">Accessible Blind Game</h1></header>'+
+    '<p class="lead">Sign in to start playing. You need to sign in before you can open the game.</p>'+
+    '<div class="stack">'+
+      '<button type="button" class="btn primary big" data-act="pick-provider" data-provider="email">Sign in with Email</button>'+
+      '<button type="button" class="btn big" data-act="pick-provider" data-provider="phone">Sign in with Phone number</button>'+
+    '</div>'+
+    ''};
+};
+
+function nameFromContact(v,pv){
+  if(pv==='phone'){return 'Player '+v.replace(/\D/g,'').slice(-4);}
+  var w=v.split('@')[0].replace(/[._\-+]+/g,' ').replace(/\d+/g,' ').trim().split(/\s+/).filter(Boolean);
+  return w.length?w.map(function(x){return x.charAt(0).toUpperCase()+x.slice(1);}).join(' '):'Player';
+}
+views['choose-account']=function(){
+  var pv=PENDING||'email',isPhone=pv==='phone';
+  var saved=Object.keys(DB.profiles).filter(function(k){return DB.profiles[k].provider===pv;});
+  var list=saved.map(function(k){var q=DB.profiles[k];
+    return '<li><button type="button" class="btn left" data-act="use-account" data-key="'+esc(k)+'"><span class="avatar" aria-hidden="true">'+esc((q.name.trim()[0]||'?').toUpperCase())+'</span><span class="col"><strong>'+esc(q.name)+'</strong><span class="sub">'+esc(q.email)+'</span></span></button></li>';}).join('');
+  var title=isPhone?'Sign in with Phone number':'Sign in with Email';
+  var lab=isPhone?'Phone number':'Email address';
+  return {title:title,hint:saved.length?'Choose an account on this device, or enter another one.':'Enter your '+lab.toLowerCase()+', then press Continue.',html:
+    back('sign-in','sign-in options')+'<h1 tabindex="-1">'+title+'</h1>'+
+    (saved.length?'<h2>Accounts on this device</h2><ul class="menu">'+list+'</ul><h2>Use another</h2>':'')+
+    '<form id="ca-form" novalidate><div class="field"><label for="ca-value">'+lab+'</label>'+
+      '<input id="ca-value" type="'+(isPhone?'tel':'email')+'" inputmode="'+(isPhone?'tel':'email')+'" autocomplete="'+(isPhone?'tel':'email')+'" maxlength="80">'+
+      '<p class="hint">'+(isPhone?'Include the country code, for example +8801712345678.':'For example name@example.com')+'</p></div>'+
+    '<p id="ca-err" class="err" role="alert" hidden></p>'+
+    '<button type="button" class="btn primary" data-act="submit-account">Continue</button></form>'};
+};
+
+views.home=function(){
+  var p=me(),lv=levelOf(p),un=unreadCount(p);
+  return {title:'Home',hint:'Welcome, '+p.name+'. Level '+lv+'. Options are Profile, Explore menu, Notifications, Play versus Robot and Online Multiplayer.',html:
+    '<header class="brand">'+WAVE+'<h1 tabindex="-1">Accessible Blind Game</h1></header>'+
+    '<div class="toprow">'+
+      '<button type="button" class="btn left profile" data-go="profile" aria-label="Profile: '+esc(p.name)+', Level '+lv+'">'+
+        '<span class="avatar" aria-hidden="true">'+esc((p.name.trim()[0]||'?').toUpperCase())+'</span>'+
+        '<span class="col"><strong>'+esc(p.name)+'</strong><span class="sub">Level '+lv+' · '+stageOf(lv)+'</span></span></button>'+
+      '<button type="button" class="btn iconbtn" data-go="explore" aria-label="Explore, opens menu"><svg width="30" height="30" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="5" r="2.4" fill="currentColor"/><circle cx="12" cy="12" r="2.4" fill="currentColor"/><circle cx="12" cy="19" r="2.4" fill="currentColor"/></svg></button>'+
+    '</div>'+
+    '<div class="home-list">'+
+      '<button type="button" class="btn left" data-go="notifications" aria-label="Notifications'+(un?', '+un+' new':'')+'"><span>Notifications</span>'+(un?'<span class="badge" aria-hidden="true">'+un+'</span>':'')+'</button>'+
+      '<button type="button" class="btn primary big" data-go="play-robot"><span class="col">Play vs Robot<span class="sub">Snakes and Ladders against a computer player</span></span></button>'+
+      '<button type="button" class="btn big" data-go="multiplayer"><span class="col">Online Multiplayer<span class="sub">Coming soon</span></span></button>'+
+    '</div>'};
+};
+
+views.profile=function(){
+  var p=me(),lv=levelOf(p),inLv=p.wins%WINS_PER_LEVEL,toGo=WINS_PER_LEVEL-inLv;
+  var prov=PROVIDERS[p.provider]+(p.email?' ('+esc(p.email)+')':'');
+  var joined=new Date(p.joined).toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
+  var stages=STAGES.map(function(n,i){
+    var L=i+1,cls=L<lv?'done':(L===lv?'cur':'lock'),st=L<lv?'Completed':(L===lv?'Current stage':'Locked');
+    var need=i*WINS_PER_LEVEL;
+    return '<li class="'+cls+'"><span class="chip">Level '+L+'</span><span>'+n+'</span><span class="st">'+st+(L>lv?', needs '+need+' wins':'')+'</span></li>';
+  }).join('');
+  return {title:'Profile',hint:p.name+'. Level '+lv+'. Press the last button to edit your profile.',html:
+    back('home','home')+'<h1 tabindex="-1">Profile</h1>'+
+    '<section class="group" aria-labelledby="pf-acc"><h2 id="pf-acc">Account</h2><dl class="facts"><dt>Name</dt><dd>'+esc(p.name)+'</dd>'+
+      '<dt>Signed in with</dt><dd>'+prov+'</dd><dt>Joined on</dt><dd>'+joined+'</dd>'+
+      (p.about?'<dt>About me</dt><dd>'+esc(p.about)+'</dd>':'')+'</dl></section>'+
+    '<section class="group" aria-labelledby="pf-lv"><h2 id="pf-lv">Level</h2><div class="levelbox"><div class="lv">Level '+lv+'</div><div>'+stageOf(lv)+'</div>'+
+      '<progress max="'+WINS_PER_LEVEL+'" value="'+inLv+'" aria-label="First-place wins toward level '+(lv+1)+'"></progress>'+
+      '<div>'+inLv+' of '+WINS_PER_LEVEL+' first-place wins. '+toGo+' more to reach level '+(lv+1)+'. Losing never lowers your level.</div></div></section>'+
+    '<section class="group" aria-labelledby="pf-st"><h2 id="pf-st">Stages</h2><ol class="stages">'+stages+'</ol></section>'+
+    '<section class="group" aria-labelledby="pf-gm"><h2 id="pf-gm">Games available</h2><ul><li><strong>Snakes and Ladders</strong>. Level '+lv+'. Played '+p.played+', first places '+p.wins+', lost '+p.losses+'.</li></ul></section>'+
+    '<div class="stack" style="margin-top:20px"><button type="button" class="btn primary" data-go="edit-profile">Edit profile</button></div>'};
+};
+
+views['edit-profile']=function(){
+  var p=me();
+  return {title:'Edit profile',hint:'Change your name or about text, sign out, or delete your account.',html:
+    back('profile','profile')+'<h1 tabindex="-1">Edit profile</h1>'+
+    '<form id="ep-form" novalidate>'+
+    '<div class="field"><label for="ep-name">Name</label><input id="ep-name" type="text" maxlength="40" value="'+esc(p.name)+'"></div>'+
+    '<div class="field"><label for="ep-about">About me</label><textarea id="ep-about" maxlength="160">'+esc(p.about||'')+'</textarea><p class="hint">Up to 160 characters.</p></div>'+
+    '<p id="ep-err" class="err" role="alert" hidden></p>'+
+    '<button type="button" class="btn primary" data-act="save-profile">Save changes</button>'+
+    '<p id="ep-ok" class="ok" role="status" hidden></p></form>'+
+    '<h2>Account</h2><div class="stack">'+
+    '<button type="button" class="btn" data-act="signout">Sign out</button>'+
+    '<button type="button" class="btn danger" id="del-ask" data-act="delete-ask">Delete my account</button></div>'+
+    '<div id="del-box" class="panel" role="group" aria-labelledby="del-h" tabindex="-1" hidden>'+
+      '<h2 id="del-h">Delete your account?</h2><p>Your name, level and game history will be removed from this device. This cannot be undone.</p>'+
+      '<div class="stack"><button type="button" class="btn dangerfill" data-act="delete-yes">Yes, delete my account</button>'+
+      '<button type="button" class="btn" data-act="delete-no">Cancel</button></div></div>'};
+};
+
+views.explore=function(){
+  var items=[['app-settings','Settings'],['how-to-play','How to Play'],['terms','Terms and Conditions'],['privacy','Privacy Policy'],['copyright','Copyright'],['visual-foundation','Visual Foundation']];
+  return {title:'Explore',hint:'Settings, How to Play, Terms and Conditions, Privacy Policy, Copyright and Visual Foundation.',html:
+    back('home','home')+'<h1 tabindex="-1">Explore</h1>'+
+    '<ul class="menu">'+items.map(function(i){return '<li><button type="button" class="btn left" data-go="'+i[0]+'"><span>'+i[1]+'</span><span class="chev" aria-hidden="true">›</span></button></li>';}).join('')+'</ul>'};
+};
+
+views.notifications=function(){
+  var p=me(),nn=newNotes(p),un=nn.filter(function(n){return DB.read.indexOf(n.id)<0;}).length;
+  function item(n){var unread=DB.read.indexOf(n.id)<0&&n.kind==='new';
+    return '<div class="noteitem'+(unread?' unread':'')+'"><h3>'+esc(n.title)+(unread?' <span class="muted">(unread)</span>':'')+'</h3><p>'+esc(n.body)+'</p></div>';}
+  var ups=STATIC_NOTES.filter(function(n){return n.kind==='update';});
+  return {title:'Notifications',hint:un?un+' new notifications.':'No new notifications.',html:
+    back('home','home')+'<h1 tabindex="-1">Notifications</h1>'+
+    '<h2>New</h2>'+nn.map(item).join('')+
+    (un?'<button type="button" class="btn" data-act="mark-read">Mark all as read</button>':'<p class="muted">You have read everything.</p>')+
+    '<h2>Updates</h2>'+ups.map(item).join('')};
+};
+
+views['app-settings']=function(){
+  var s=DB.settings,p=me();
+  function opts(map,cur){return Object.keys(map).map(function(k){return '<option value="'+k+'"'+(k===cur?' selected':'')+'>'+map[k].name+'</option>';}).join('');}
+  return {title:'Settings',hint:'Primary color, secondary color, user profile, and sound and announcements.',html:
+    back('explore','Explore')+'<h1 tabindex="-1">Settings</h1>'+
+    '<section class="group" aria-labelledby="st-p"><h2 id="st-p">Primary color</h2><div class="field"><label for="set-primary">Buttons and highlights</label><select id="set-primary">'+opts(PRIMARY,s.primary)+'</select></div></section>'+
+    '<section class="group" aria-labelledby="st-s"><h2 id="st-s">Secondary color</h2><div class="field"><label for="set-secondary">Focus outlines and accents</label><select id="set-secondary">'+opts(SECONDARY,s.secondary)+'</select></div></section>'+
+    '<section class="group" aria-labelledby="st-u"><h2 id="st-u">User profile</h2><p>Signed in as '+esc(p.name)+'.</p><button type="button" class="btn" data-go="profile">Open my profile</button></section>'+
+    '<section class="group" aria-labelledby="st-a"><h2 id="st-a">Manage sound and announcements</h2>'+
+    '<div class="check"><input id="set-sound" type="checkbox"'+(s.sound?' checked':'')+'><label for="set-sound">Sound effects</label></div>'+
+    '<div class="check"><input id="set-comm" type="checkbox"'+(s.commentary?' checked':'')+'><label for="set-comm">Game commentator voice</label></div>'+
+    '<p class="hint" style="margin-bottom:12px">A separate, sweet female voice that commentates your games. It keeps its own voice when TalkBack is on.</p>'+
+    '<div class="check"><input id="set-voice" type="checkbox"'+(s.voice?' checked':'')+'><label for="set-voice">Spoken menu announcements</label></div>'+
+    '<p class="hint" style="margin-bottom:16px">Turn this off if you use TalkBack or another screen reader. Menus are then read by your screen reader only.</p>'+
+    '<div class="field"><label for="set-rate">Voice speed</label><select id="set-rate">'+
+      [['slow','Slow'],['normal','Normal'],['fast','Fast']].map(function(r){return '<option value="'+r[0]+'"'+(s.rate===r[0]?' selected':'')+'>'+r[1]+'</option>';}).join('')+'</select></div>'+
+    '<div class="field"><label for="set-volume">Volume: <span id="vol-val">'+s.volume+'</span> percent</label><input id="set-volume" type="range" min="0" max="100" step="10" value="'+s.volume+'"></div>'+
+    '<button type="button" class="btn primary" data-act="test-audio">Test voice and sound</button></section>'};
+};
+
+function textPage(title,to,toLabel,sections){
+  return {title:title,hint:'',html:back(to,toLabel)+'<h1 tabindex="-1">'+title+'</h1>'+sections.map(function(s){
+    return (s[0]?'<h2>'+s[0]+'</h2>':'')+s[1];}).join('')};
+}
+views['how-to-play']=function(){return textPage('How to Play','explore','Explore',[
+  ['The app','<p>The home screen has Profile, the Explore menu, Notifications, Play vs Robot and Online Multiplayer. Every button has a spoken label.</p>'],
+  ['Snakes and Ladders','<ul><li>Press the big Roll dice button on your turn.</li><li>You move forward by the number rolled.</li><li>If you land at the bottom of a ladder you climb up. Listen for the rising tones.</li><li>If you land on a snake head you slide down. Listen for the falling tone.</li><li>Reach square 100 first to win. You can pass 100 to finish.</li><li>Robots take their turns by themselves. Each move is announced.</li></ul>'],
+  ['Help during a game','<p>Press Help to hear where you are, read every position, hear positions as tones, or list the snakes and ladders.</p>'],
+  ['Levels','<p>Win 10 games in first place to reach the next level. Losing never lowers your level.</p>']]);};
+views.terms=function(){return textPage('Terms and Conditions','explore','Explore',[
+  ['','<p class="muted">Draft text. Have it reviewed before public release.</p>'],
+  ['Using the game','<p>Accessible Blind Game is a free game for personal use. Play fairly and do not try to break or misuse the app.</p>'],
+  ['No guarantees','<p>The game is provided as it is. Features such as online multiplayer may change or be added later.</p>'],
+  ['Your account','<p>You are responsible for the name and details you enter. You can delete your account at any time from Edit profile.</p>']]);};
+views.privacy=function(){return textPage('Privacy Policy','explore','Explore',[
+  ['','<p class="muted">Draft text. Update it before connecting real sign-in or online play.</p>'],
+  ['What is stored','<p>In this preview build your name, optional email, about text, settings and game results are stored only in this browser on your device. Nothing is sent to a server.</p>'],
+  ['Deleting your data','<p>Use Delete my account in Edit profile to remove your profile from this device.</p>'],
+  ['Sound and voice','<p>The app uses your device voice to read announcements. It does not record audio.</p>']]);};
+views.copyright=function(){return textPage('Copyright','explore','Explore',[
+  ['','<p>Copyright 2026 Accessible Blind Game. All rights reserved.</p>'],
+  ['Game','<p>Snakes and Ladders is a traditional game. The boards, sounds and layout in this app are original to it.</p>'],
+  ['Typeface','<p>Atkinson Hyperlegible was designed by the Braille Institute of America and is used under the SIL Open Font License 1.1.</p>']]);};
+views['visual-foundation']=function(){return textPage('Visual Foundation','explore','Explore',[
+  ['','<p>The look of the app supports people with low vision and keeps every screen simple.</p>'],
+  ['Principles','<ul><li>Strong contrast between text and background in light and dark modes.</li><li>Large controls, at least 60 pixels tall, in a single column.</li><li>A typeface designed so similar letters and numbers are easy to tell apart.</li><li>Color is never the only signal. Every state also has words.</li><li>Every button has a text label that a screen reader can read.</li><li>Motion is reduced when your device asks for it.</li></ul>'],
+  ['Your colors','<p>Pick a primary and a secondary color in Settings.</p>']]);};
+
+views.multiplayer=function(){
+  return {title:'Online Multiplayer',hint:'Coming soon. For now you can play against a robot.',html:
+    back('home','home')+'<h1 tabindex="-1">Online Multiplayer</h1>'+
+    '<p class="lead">Online multiplayer is not available yet. It is planned for a later update. For now you can play against a robot.</p>'+
+    '<div class="stack"><button type="button" class="btn primary" data-go="play-robot">Play vs Robot</button></div>'};
+};
+
+function boardDesc(k){var b=BOARDS[k];return Object.keys(b.ladders).length+' ladders and '+Object.keys(b.snakes).length+' snakes. '+b.blurb;}
+views['play-robot']=function(){
+  var st=DB.setup;
+  var boards=Object.keys(BOARDS).map(function(k){return '<option value="'+k+'"'+(k===st.board?' selected':'')+'>'+BOARDS[k].name+'</option>';}).join('');
+  var robots=[['B','Robot B'],['C','Robot C'],['D','Robot D'],['all','All three robots, 4 players']].map(function(r){return '<option value="'+r[0]+'"'+(r[0]===st.robot?' selected':'')+'>'+r[1]+'</option>';}).join('');
+  return {title:'Play versus Robot',hint:'Choose a game, a board and a robot, then press Start game.',html:
+    back('home','home')+'<h1 tabindex="-1">Play vs Robot</h1>'+
+    '<form id="setup-form" novalidate>'+
+    '<div class="field"><label for="sel-game">Select game</label><select id="sel-game"><option value="snakes">Snakes and Ladders</option></select></div>'+
+    '<div class="field"><label for="sel-board">Select board</label><select id="sel-board">'+boards+'</select><p id="board-desc" class="hint">'+boardDesc(st.board)+'</p></div>'+
+    '<div class="field"><label for="sel-robot">Select robot</label><select id="sel-robot">'+robots+'</select></div>'+
+    '<button type="button" class="btn primary big" data-act="start-game">Start game</button></form>'};
+};
+
+/* ---------- game ---------- */
+function ladderSVG(a,z){
+  var A=sqXY(a),Z=sqXY(z),dx=Z.x-A.x,dy=Z.y-A.y,len=Math.sqrt(dx*dx+dy*dy),ux=dx/len,uy=dy/len,px=-uy*1.2,py=ux*1.2;
+  var s='<path class="lad" d="M'+(A.x+px)+' '+(A.y+py)+'L'+(Z.x+px)+' '+(Z.y+py)+'M'+(A.x-px)+' '+(A.y-py)+'L'+(Z.x-px)+' '+(Z.y-py);
+  var n=Math.max(2,Math.floor(len/4.5));
+  for(var k=1;k<=n;k++){var f=k/(n+1),cx=A.x+dx*f,cy=A.y+dy*f;s+='M'+(cx+px)+' '+(cy+py)+'L'+(cx-px)+' '+(cy-py);}
+  return s+'"/>';
+}
+function snakeSVG(a,z){
+  var A=sqXY(a),Z=sqXY(z),dx=Z.x-A.x,dy=Z.y-A.y,len=Math.sqrt(dx*dx+dy*dy),nx=-dy/len,ny=dx/len,o=len*0.2;
+  var c1x=A.x+dx*0.33+nx*o,c1y=A.y+dy*0.33+ny*o,c2x=A.x+dx*0.66-nx*o,c2y=A.y+dy*0.66-ny*o;
+  return '<path class="snk" d="M'+A.x+' '+A.y+'C'+c1x+' '+c1y+' '+c2x+' '+c2y+' '+Z.x+' '+Z.y+'"/>'+
+    '<circle class="snkhead" cx="'+A.x+'" cy="'+A.y+'" r="2.2"/><circle class="eye" cx="'+(A.x-0.8)+'" cy="'+(A.y-0.6)+'" r=".45"/><circle class="eye" cx="'+(A.x+0.8)+'" cy="'+(A.y-0.6)+'" r=".45"/>';
+}
+function tokXY(pl,idx){
+  if(pl.pos===0){return {x:22+idx*9,y:105};}
+  var c=sqXY(pl.pos);return {x:c.x+(idx%2)*3.4-1.7,y:c.y+Math.floor(idx/2)*3.4-1.7+1};
+}
+function boardSVG(g){
+  var b=BOARDS[g.boardKey],s='<svg viewBox="0 0 100 110" role="presentation" focusable="false" aria-hidden="true">';
+  for(var n=1;n<=100;n++){var i=n-1,r=Math.floor(i/10),c=(r%2===0)?i%10:9-(i%10),x=c*10,y=(9-r)*10;
+    s+='<rect class="'+((r+c)%2?'cb':'ca')+'" x="'+x+'" y="'+y+'" width="10" height="10"/><text class="num" x="'+(x+0.8)+'" y="'+(y+3.3)+'">'+n+'</text>';}
+  s+='<rect class="startzone" x="0" y="100" width="100" height="10"/><text class="num" x="2" y="106.2">START</text>';
+  Object.keys(b.ladders).forEach(function(k){s+=ladderSVG(+k,b.ladders[k]);});
+  Object.keys(b.snakes).forEach(function(k){s+=snakeSVG(+k,b.snakes[k]);});
+  g.players.forEach(function(pl,i){var t=tokXY(pl,i);
+    s+='<g class="tok" id="tok-'+pl.id+'" style="transform:translate('+t.x+'px,'+t.y+'px)"><circle r="'+(pl.isHuman?3.5:3.1)+'" class="t-'+pl.color+'"/><text class="tt-'+pl.color+'">'+esc(pl.initial)+'</text></g>';});
+  return s+'</svg>';
+}
+function updateTokens(){
+  if(!G){return;}
+  G.players.forEach(function(pl,i){var el=document.getElementById('tok-'+pl.id);if(el){var t=tokXY(pl,i);el.style.transform='translate('+t.x+'px,'+t.y+'px)';}});
+  var ul=$('#positions');if(ul){ul.innerHTML=positionsHTML();}
+}
+function positionsHTML(){
+  return G.players.map(function(pl){
+    return '<li><span class="dot d-'+pl.color+'" aria-hidden="true"></span><strong>'+esc(pl.name)+'</strong><span class="sq">'+(pl.pos===0?'at the start':'square '+pl.pos)+'</span></li>';}).join('');
+}
+function setStatus(t){var el=$('#status');if(el){el.textContent=t;}}
+function pushHistory(t){
+  G.history.unshift(t);if(G.history.length>30){G.history.pop();}
+  var ol=$('#history');if(ol){ol.innerHTML=G.history.map(function(h){return '<li>'+esc(h)+'</li>';}).join('');}
+}
+function rollLabel(){return 'Roll the dice. You are '+posText(G.players[0].pos)+'.';}
+function setBusy(b){
+  var r=$('#roll');if(!r){return;}
+  r.setAttribute('aria-disabled',b?'true':'false');
+  r.setAttribute('aria-label',b?'Robots are playing. Please wait.':rollLabel());
+  r.innerHTML=b?'Please wait':'Roll dice<span class="sub">You are '+posText(G.players[0].pos)+'</span>';
+}
+function startGame(){
+  var p=me(),robots=DB.setup.robot==='all'?['B','C','D']:[DB.setup.robot];
+  var players=[{id:'you',name:p.name,isHuman:true,initial:(p.name.trim()[0]||'Y').toUpperCase(),pos:0,color:'you'}].concat(
+    robots.map(function(r){return {id:'r'+r,name:'Robot '+r,isHuman:false,initial:r,pos:0,color:r};}));
+  G={boardKey:DB.setup.board,players:players,over:false,aborted:false,busy:false,intro:false,history:[],result:null};
+}
+views.game=function(){
+  if(G&&G.aborted){G=null;}
+  if(!G){return views['play-robot']();}
+  var b=BOARDS[G.boardKey],you=G.players[0],opp=G.players.slice(1).map(function(x){return x.name;}).join(', ');
+  var lad=Object.keys(b.ladders).map(function(k){return '<li>Square '+k+' up to '+b.ladders[k]+'</li>';}).join('');
+  var snk=Object.keys(b.snakes).map(function(k){return '<li>Square '+k+' down to '+b.snakes[k]+'</li>';}).join('');
+  var over=G.over;
+  return {title:'Snakes and Ladders',hint:'',html:
+    '<div class="appbar"><button type="button" class="abtn" data-act="quit-ask" aria-label="Quit game"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20 11H7.8l5.6-5.6L12 4l-8 8 8 8 1.4-1.4L7.8 13H20z" fill="currentColor"/></svg></button><span class="abtitle" aria-hidden="true">Snakes and Ladders</span></div>'+
+    '<h1 tabindex="-1">Snakes and Ladders</h1>'+
+    '<p class="muted">'+b.name+'. '+esc(you.name)+' against '+esc(opp)+'.</p>'+
+    '<div id="quit-box" class="panel" role="group" aria-labelledby="quit-h" tabindex="-1" hidden><h2 id="quit-h">Quit this game?</h2><p>Your progress in this game will be lost.</p>'+
+      '<div class="stack"><button type="button" class="btn dangerfill" data-act="quit-yes">Yes, quit</button><button type="button" class="btn" data-act="quit-no">Keep playing</button></div></div>'+
+    '<p id="status" class="status">'+(over?'Game over.':(G.busy?'Playing…':'Your turn. You are '+posText(you.pos)+'.'))+'</p>'+
+    '<button type="button" id="roll" class="btn primary giant" data-act="roll" aria-disabled="'+(G.busy?'true':'false')+'" aria-label="'+(G.busy?'Robots are playing. Please wait.':esc(rollLabel()))+'"'+(over?' hidden':'')+'>'+
+      (G.busy?'Please wait':'Roll dice<span class="sub">You are '+posText(you.pos)+'</span>')+'</button>'+
+    '<div id="result-slot" tabindex="-1">'+(over&&G.result?G.result:'')+'</div>'+
+    '<div class="row2"><button type="button" class="btn" id="help-btn" data-act="help-toggle" aria-expanded="false" aria-controls="help">Help</button>'+
+      '<button type="button" class="btn" data-act="repeat">Repeat last</button></div>'+
+    '<section id="help" class="panel" aria-labelledby="help-h" tabindex="-1" hidden><h2 id="help-h">Game help</h2>'+
+      '<div class="stack"><button type="button" class="btn" data-act="where">Where am I?</button>'+
+      '<button type="button" class="btn" data-act="positions">Read all positions</button>'+
+      '<button type="button" class="btn" data-act="tones">Hear positions as tones</button>'+
+      '<button type="button" class="btn" data-act="snakes-read">Read snakes and ladders</button>'+
+      '<button type="button" class="btn" data-act="howto-read">How to play</button></div>'+
+      '<h3>Ladders on this board</h3><ul>'+lad+'</ul><h3>Snakes on this board</h3><ul>'+snk+'</ul>'+
+      '<button type="button" class="btn" data-act="help-toggle">Close help</button></section>'+
+    '<div class="boardwrap" aria-hidden="true">'+boardSVG(G)+'</div>'+
+    '<h2>Positions</h2><ul id="positions" class="poslist">'+positionsHTML()+'</ul>'+
+    '<h2>Move history</h2><ol id="history" class="history">'+G.history.map(function(h){return '<li>'+esc(h)+'</li>';}).join('')+'</ol>',
+    after:function(){
+      if(!G.intro){G.intro=true;introGame(G);}
+    }};
+};
+
+function turnMessage(pl,r){
+  var you=pl.isHuman,n=pl.name,f=r.final,m;
+  if(r.won){
+    m=you?'A '+r.roll+'! And you reach square 100! You win! What a fantastic game!'
+         :n+' rolls a '+r.roll+' and reaches square 100. '+n+' wins this one!';
+  }else if(r.event==='ladder'){
+    m=you?pick(['You rolled a '+r.roll+' and land on square '+r.landed+'. A ladder! What a climb, all the way up to square '+f+'!','A '+r.roll+'! Square '+r.landed+' has a ladder. Up you go to square '+f+'!'])
+         :n+' rolls a '+r.roll+', finds a ladder on square '+r.landed+', and climbs up to square '+f+'.';
+  }else if(r.event==='snake'){
+    m=you?pick(['You rolled a '+r.roll+' and land on square '+r.landed+'. Oh no, a snake! Sliding down to square '+f+'.','A '+r.roll+'. Oops, a snake on square '+r.landed+'! Down you slide to square '+f+'.'])
+         :n+' rolls a '+r.roll+' and meets a snake on square '+r.landed+'. Ouch! Down to square '+f+'.';
+  }else{
+    m=you?pick(['You rolled a '+r.roll+'! Moving to square '+f+'.','A '+r.roll+'! You step forward to square '+f+'.','Rolled a '+r.roll+'. You are now on square '+f+'.'])
+         :n+' rolls a '+r.roll+' and moves to square '+f+'.';
+  }
+  if(!r.won&&f>=90){m+=' Almost there, only '+(100-f)+' squares to go!';}
+  return m;
+}
+async function introGame(g){
+  var names=g.players.map(function(p){return p.name;});
+  var txt='Hello and welcome to Snakes and Ladders! I am your commentator today. We are playing on the '+BOARDS[g.boardKey].name+'. Our players are '+names.join(', ')+'. Everyone begins at the start, and you go first. Press the Roll dice button when you are ready.';
+  setStatus('Your turn. You are at the start.');
+  pushHistory('Game started. You go first.');
+  await say(txt);
+}
+async function playerTurn(g,pl){
+  var board=BOARDS[g.boardKey],roll=1+Math.floor(Math.random()*6),r=takeTurn(board,pl.pos,roll);
+  if(!pl.isHuman){setStatus(pl.name+' is playing…');}
+  sfx.roll();await sleep(750);if(g.aborted||G!==g){return false;}
+  for(var i=1;i<=roll;i++){pl.pos=Math.min(100,r.from+i);updateTokens();sfx.step(i);await sleep(140);if(g.aborted||G!==g){return false;}}
+  if(r.event){
+    await sleep(250);
+    if(r.event==='ladder'){sfx.ladder();}else{sfx.snake();}
+    pl.pos=r.final;updateTokens();await sleep(r.event==='snake'?850:650);if(g.aborted||G!==g){return false;}
+  }
+  pl.pos=r.final;updateTokens();
+  var msg=turnMessage(pl,r);pushHistory(msg);setStatus(msg);
+  await say(msg);
+  if(g.aborted||G!==g){return false;}
+  if(r.won){g.winner=pl;}
+  return true;
+}
+async function doRoll(){
+  var g=G;if(!g||g.busy||g.over){sfx.error();return;}
+  g.busy=true;setBusy(true);
+  for(var i=0;i<g.players.length;i++){
+    var ok=await playerTurn(g,g.players[i]);
+    if(!ok){return;}
+    if(g.winner){break;}
+  }
+  if(g.winner){await finishGame(g);return;}
+  g.busy=false;setBusy(false);
+  var you=g.players[0];
+  setStatus('Your turn. You are '+posText(you.pos)+'.');
+  var rb=$('#roll');if(rb){rb.focus();}
+  await say(pick(['Your turn. ','Over to you. ','Your roll. '])+'You are '+posText(you.pos)+'.');
+}
+async function finishGame(g){
+  g.over=true;g.busy=false;
+  var p=me(),you=g.players[0],won=g.winner===you,before=levelOf(p);
+  p.played++;if(won){p.wins++;}else{p.losses++;}
+  var after=levelOf(p),lvUp=after>before;
+  if(lvUp){p.alerts=p.alerts||[];p.alerts.unshift({id:'lvl-'+DB.session+'-'+after,kind:'new',title:'You reached level '+after,body:'Stage: '+stageOf(after)+'. Keep winning to climb further.'});}
+  save();
+  var place=won?1:1+g.players.filter(function(x){return x.pos>you.pos;}).length;
+  var toGo=WINS_PER_LEVEL-(p.wins%WINS_PER_LEVEL);
+  var txt;
+  if(won){txt='Game over. Congratulations, you finish in first place! You now have '+p.wins+' first-place wins. '+(lvUp?'Level up! You are now level '+after+', stage '+stageOf(after)+'. Well done!':toGo+' more first-place wins to reach level '+(after+1)+'.');}
+  else{txt='Game over. '+g.winner.name+' takes the win. You finish in '+ORD[place-1]+' place, '+posText(you.pos)+'. Great effort! Your level stays at '+after+'.';}
+  g.result='<section class="panel" aria-labelledby="res-h"><h2 id="res-h">Game over</h2><p>'+esc(txt)+'</p><div class="stack">'+
+    '<button type="button" class="btn primary" data-act="again">Play again</button><button type="button" class="btn" data-go="home">Back to home</button></div></section>';
+  setStatus('Game over.');pushHistory(txt);
+  var rb=$('#roll');if(rb){rb.hidden=true;}
+  var slot=$('#result-slot');if(slot){slot.innerHTML=g.result;slot.focus();}
+  if(won){sfx.win();}else{sfx.lose();}
+  await sleep(600);
+  await say(txt);
+}
+function nearby(pos){
+  var b=BOARDS[G.boardKey],bestL=null,bestS=null;
+  Object.keys(b.ladders).map(Number).sort(function(a,c){return a-c;}).forEach(function(k){if(k>pos&&bestL===null){bestL=k;}});
+  Object.keys(b.snakes).map(Number).sort(function(a,c){return a-c;}).forEach(function(k){if(k>pos&&bestS===null){bestS=k;}});
+  var t='';
+  if(bestL!==null){t+=' Next ladder ahead: square '+bestL+' up to '+b.ladders[bestL]+', '+(bestL-pos)+' squares away.';}
+  if(bestS!==null){t+=' Next snake ahead: square '+bestS+' down to '+b.snakes[bestS]+', '+(bestS-pos)+' squares away.';}
+  return t;
+}
+function allPositions(){return G.players.map(function(p){return (p.isHuman?p.name+' is ':p.name+' is ')+posText(p.pos)+'.';}).join(' ');}
+async function playTones(){
+  var intro='Listen. A higher pitch means closer to square 100. The first tone is you. The others follow from left to right.';
+  await say(intro);
+  var pans=[0,-0.8,0.8,0.4];
+  G.players.forEach(function(pl,i){
+    var f=220*Math.pow(2,(pl.pos/100)*2);
+    tone(f,i*0.7,0.5,pl.isHuman?'triangle':'sine',0.3,pans[i%4]);
+  });
+  await sleep(G.players.length*700+200);
+  await say(allPositions());
+}
+
+/* ---------- actions ---------- */
+var actions={
+  'pick-provider':function(el){PENDING=el.getAttribute('data-provider');go('choose-account');},
+  'use-account':function(el){var k=el.getAttribute('data-key');if(DB.profiles[k]){DB.session=k;save();sfx.chime();go('home');}},
+  'submit-account':function(){
+    var pv=PENDING||'email',isPhone=pv==='phone',raw=($('#ca-value').value||'').trim(),err=$('#ca-err'),msg='',val;
+    if(isPhone){
+      val=raw.replace(/[\s\-().]/g,'');
+      if(!/^\+?\d{7,15}$/.test(val)){msg='Enter a valid phone number with 7 to 15 digits. You can start with a plus sign and the country code.';}
+    }else{
+      val=raw.toLowerCase();
+      if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)){msg='Enter a valid email address, for example name@example.com.';}
+    }
+    if(msg){err.textContent=msg;err.hidden=false;$('#ca-value').focus();sfx.error();if(DB.settings.voice){announce(msg);}return;}
+    err.hidden=true;
+    var key=pv+'|'+val;
+    if(!DB.profiles[key]){DB.profiles[key]={name:nameFromContact(val,pv),about:'',provider:pv,email:val,joined:new Date().toISOString(),played:0,wins:0,losses:0,alerts:[]};}
+    DB.session=key;save();sfx.chime();go('home');
+  },
+  'save-profile':function(){
+    var p=me(),name=($('#ep-name').value||'').trim(),err=$('#ep-err'),ok=$('#ep-ok');
+    ok.hidden=true;
+    if(name.length<2){err.textContent='Your name needs at least 2 letters.';err.hidden=false;$('#ep-name').focus();sfx.error();announce(err.textContent);return;}
+    err.hidden=true;p.name=name;p.about=($('#ep-about').value||'').trim();save();
+    ok.textContent='Profile saved.';ok.hidden=false;sfx.chime();announce('Profile saved.');
+  },
+  signout:function(){DB.session=null;save();go('sign-in');announce('You are signed out.');},
+  'delete-ask':function(){var b=$('#del-box');b.hidden=false;b.focus();announce('Delete your account? This cannot be undone. Choose Yes, delete my account, or Cancel.');},
+  'delete-no':function(){$('#del-box').hidden=true;$('#del-ask').focus();},
+  'delete-yes':function(){delete DB.profiles[DB.session];DB.session=null;save();G=null;go('sign-in');announce('Your account was deleted.');},
+  'mark-read':function(){newNotes(me()).forEach(function(n){if(DB.read.indexOf(n.id)<0){DB.read.push(n.id);}});save();render();},
+  'test-audio':function(){sfx.ladder();setTimeout(function(){announce('This is the built-in voice at the speed and volume you chose.');},700);},
+  'start-game':function(){startGame();go('game');},
+  roll:function(){doRoll();},
+  'quit-ask':function(){var b=$('#quit-box');b.hidden=false;b.focus();if(DB.settings.voice){announce('Quit this game? Choose Yes, quit, or Keep playing.');}},
+  'quit-no':function(){$('#quit-box').hidden=true;var r=$('#roll');if(r&&!r.hidden){r.focus();}},
+  'quit-yes':function(){if(G){G.aborted=true;}cancelSpeech();go('play-robot');},
+  again:function(){startGame();render();},
+  repeat:function(){if(lastSpoken){say(lastSpoken);}},
+  'help-toggle':function(){
+    var h=$('#help'),btn=$('#help-btn'),open=h.hidden;
+    h.hidden=!open;btn.setAttribute('aria-expanded',open?'true':'false');
+    if(open){h.focus();if(DB.settings.voice){announce('Game help. Where am I, read all positions, hear positions as tones, read snakes and ladders, and how to play.');}}else{btn.focus();}
+  },
+  where:function(){var pl=G.players[0];say('You are '+posText(pl.pos)+'.'+(pl.pos?' '+(100-pl.pos)+' squares to go.':'')+nearby(pl.pos));},
+  positions:function(){say(allPositions());},
+  tones:function(){playTones();},
+  'snakes-read':function(){
+    var b=BOARDS[G.boardKey];
+    var l=Object.keys(b.ladders).map(function(k){return 'square '+k+' up to '+b.ladders[k];}).join(', ');
+    var s=Object.keys(b.snakes).map(function(k){return 'square '+k+' down to '+b.snakes[k];}).join(', ');
+    say('Ladders: '+l+'. Snakes: '+s+'.');
+  },
+  'howto-read':function(){say('Press Roll dice on your turn. You move forward by the number rolled. Ladders lift you up. Snakes slide you down. Reach square 100 first to win. Robots play automatically and every move is announced.');}
+};
+
+document.addEventListener('click',function(e){
+  var t=e.target.closest?e.target.closest('[data-go],[data-act]'):null;if(!t||!$('#view').contains(t)){return;}
+  if(t.hasAttribute('data-act')){
+    if(t.getAttribute('aria-disabled')==='true'){sfx.error();return;}
+    var f=actions[t.getAttribute('data-act')];if(f){f(t);}return;
+  }
+  go(t.getAttribute('data-go'));
+});
+document.addEventListener('change',function(e){
+  var id=e.target.id,v=e.target.value,s=DB.settings;
+  if(id==='set-primary'){s.primary=v;applyTheme();save();announce('Primary color set to '+PRIMARY[v].name+'.');}
+  else if(id==='set-secondary'){s.secondary=v;applyTheme();save();announce('Secondary color set to '+SECONDARY[v].name+'.');}
+  else if(id==='set-sound'){s.sound=e.target.checked;save();if(s.sound){sfx.chime();}announce(s.sound?'Sound effects on.':'Sound effects off.');}
+  else if(id==='set-voice'){s.voice=e.target.checked;save();if(s.voice){announce('Spoken menu announcements on.');}else{live('Spoken menu announcements off. Menus are now read by your screen reader.');}}
+  else if(id==='set-comm'){s.commentary=e.target.checked;save();if(s.commentary){COMM=true;announce('Game commentator voice on.');COMM=false;}else{live('Game commentator voice off. Game announcements now go to your screen reader.');}}
+  else if(id==='set-rate'){s.rate=v;save();announce('Voice speed '+v+'.');}
+  else if(id==='sel-board'){DB.setup.board=v;save();var d=$('#board-desc');if(d){d.textContent=boardDesc(v);}announce(BOARDS[v].name+'. '+boardDesc(v));}
+  else if(id==='sel-robot'){DB.setup.robot=v;save();}
+});
+document.addEventListener('input',function(e){
+  if(e.target.id==='set-volume'){DB.settings.volume=+e.target.value;var o=$('#vol-val');if(o){o.textContent=e.target.value;}save();}
+});
+document.addEventListener('submit',function(e){e.preventDefault();if(e.target.id==='ca-form'){actions['submit-account']();}});
+/* Browser behaviours switched off: context menu, drag, text selection (inputs excepted) */
+document.addEventListener('contextmenu',function(e){e.preventDefault();});
+document.addEventListener('dragstart',function(e){e.preventDefault();});
+document.addEventListener('selectstart',function(e){var t=e.target&&e.target.nodeType===1?e.target:e.target.parentElement;if(!t||!t.closest('input,textarea')){e.preventDefault();}});
+
+applyTheme();
+render();
+})();
+</script>
+<script>
+/* Hide the browser bars: installed app opens full screen by itself; in a normal tab the first tap asks for full screen. */
+(function(){
+  try{if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}}catch(e){}
+  var standalone=false;try{standalone=window.matchMedia('(display-mode: standalone)').matches||window.navigator.standalone===true;}catch(e){}
+  if(standalone){return;}
+  function fs(){
+    var el=document.documentElement,f=el.requestFullscreen||el.webkitRequestFullscreen;
+    if(f){try{var r=f.call(el);if(r&&r.catch){r.catch(function(){});}}catch(e){}}
+    document.removeEventListener('click',fs,true);
+  }
+  document.addEventListener('click',fs,true);
+})();
+</script>
+</body>
+</html>
